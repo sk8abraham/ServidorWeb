@@ -15,9 +15,37 @@ optparse = OptionParser.new do |opt|
   opt.on('-a', '--audit ARCHIVO_AUDITORIAS', 'Archivo de bitacora del WAF') do |a| options[:audit] = a
   end
 end
-
 optparse.parse!
 
+ruta = Dir.pwd+"/"
+ruta_bitacoras = ""
+ruta_reglas = ""
+
+#Verificando que el archivo de reglas existe y obteniendo su ruta absoluta
+if options[:waf] != nil
+  if options[:waf].match(/^\/.*/)
+    ruta_reglas = options[:waf]
+  else
+    ruta_reglas = ruta + options[:waf]
+  end
+  if !File.exist?(ruta_reglas)
+    print "El archivo de reglas: " + ruta_reglas + " no existe\n"
+    exit
+   end
+end
+
+#Verificando que el directorio de bitacoras existe y obteniendo su ruta absoluta
+if options[:bitacoras] != nil
+  if options[:bitacoras].match(/^\/.*/)
+    ruta_bitacoras = options[:bitacoras]
+  else
+    ruta_bitacoras = ruta + options[:bitacoras]
+  end
+  if !Dir.exist?(ruta_bitacoras)
+    print "La ruta no es valida\n"
+    exit
+  end
+end
 
 
 
