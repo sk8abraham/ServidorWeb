@@ -1,6 +1,7 @@
 #!/usr/bin/ruby
 require 'socket'
 require 'optparse'
+require "open3"
 
 options = {puerto:8080, directorio:".",bitacoras:nil,waf:nil,audit:"audit.log"}
 
@@ -57,45 +58,114 @@ if options[:bitacoras] != nil
   end
 end
 
-
 #Cambiando de directorio al que se vaya a montar el servidor
 if Dir.exist?(options[:directorio])
   Dir.chdir options[:directorio]
   print "Directorio donde se monto: #{Dir.pwd}\n"
   print "Archivos en el servidor: #{Dir["*"]}\n"
-else 
+else
   print "Ruta no valida"
   exit
 end
 
+DIRECTORY_ROOT = Dir.pwd
 
-
-
-DIRECTORY_ROOT = '.'
-
+def run_cgi(nom_file, request, client, argumentos=nil)
+  std_out = ''
+  inter = ''
+  full_path = Dir.pwd + nom_file
+  headers = parse_headers(request)
+  #puts headers
+  puts argumentos
+  sock_domain, remote_port, remote_hostname, remote_ip = client.peeraddr
+  method, resource, version = request.lines[0].split
+  if argumentos != nil
+    ENV['QUERY_STRING'] = argumentos
+    args = argumentos.split("&")
+    if args
+      for arg in args
+        name, value = arg.split(/=/)
+        ENV[name] = value
+        puts ENV[name]
+      end
+    end
+  else
+    ENV['QUERY_STRING'] = argumentos
+  end
+  puts ENV['QUERY_STRING']
+  ENV['SERVER_SOFTWARE'] = "Python BecarioWeb2"
+  puts ENV['SERVER_SOFTWARE']
+  ENV['DOCUMENT_ROOT'] = DIRECTORY_ROOT
+  puts ENV['DOCUMENT_ROOT']
+  ENV['SERVER_PROTOCOL'] = version
+  puts ENV['SERVER_PROTOCOL']
+  ENV['SERVER_PORT'] = PORT.to_s
+  puts ENV['SERVER_PORT']
+  ENV['REQUEST_METHOD'] = method
+  puts ENV['REQUEST_METHOD']
+  ENV['GATEWAY_INTERFACE'] = 'CGI/1.1'
+  puts ENV['GATEWAY_INTERFACE']
+  ENV['REQUEST_URI'] = resource
+  puts ENV['REQUEST_URI']
+  ENV['REMOTE_ADDR'] = remote_ip
+  puts ENV['REMOTE_ADDR']
+  ENV['REMOTE_PORT'] = remote_port.to_s
+  puts ENV['REMOTE_PORT']
+  ENV['HTTP_USER_AGENT'] = headers["User-Agent"]
+  puts ENV['HTTP_USER_AGENT']
+  ENV['HTTP_COOKIE'] = headers["cookie"]
+  puts ENV['HTTP_COOKIE']
+  ENV['HTTP_REFERER'] = headers["Referer"]
+  puts ENV['HTTP_REFERER']
+  # Leemos el "shebang" del archivo CGI para saber que interprete usar
+  shebang = File.open(full_path) {|f| f.readline}
+  puts "shebang: "+shebang
+  if shebang == "#!/usr/bin/python\n" or shebang == "#!/usr/bin/env python\n"
+    inter = "python"
+    puts inter
+  elsif shebang == "#!/usr/bin/perl\n" or shebang == "#!/usr/local/bin/perl\n"
+    inter = "perl"
+    puts inter
+  elsif shebang == "#!/usr/bin/php\n"
+    inter = "php"
+    puts inter
+  end
+  # Creamos el comando para que se mandara a llamar dentro de sistema
+  cmd = "#{inter} #{full_path}"
+  puts cmd
+  Open3.popen3(cmd) do |stdin, stdout, stderr, wait_thr|
+    std_out = stdout.read
+    puts stderr.read
+    stdin.close
+    puts std_out
+  end
+  return std_out
+end
 
 # Creacion de funciones con cada metodo
-def metodo_GET(resource)
-  full_path = Dir.pwd+resource
+def metodo_GET(resource,request,client)
   puts "Este es el path GET: " + resource
   response = ''
-  #path,argumentos = path.match(/(.*)\?(.*)/).captures
-  puts resource
-  #puts argumentos
-  ext=File.extname(resource)
+  nom_file,argumentos=resource.split("?")
+  ext = File.extname(nom_file)
   if ext == ".cgi"
     puts "------- Archivo cgi ----------"
-    puts "Extension es: "+ ext
-  #elsif argumentos
-  #  puts "------- Archivo cgi con argumentos----------"
-  #  puts argumentos
+    if argumentos == nil
+      file = run_cgi(nom_file, request, client)
+      response = "HTTP/1.1 200 OK\r\n" + file
+    else
+      file = run_cgi(nom_file, request, client, argumentos)
+      response = "HTTP/1.1 200 OK\r\n" + file
+    end
   elsif ext != ".cgi"
+    full_path = Dir.pwd+nom_file
+    puts full_path
+    puts "------- Archivo no es cgi ----------"
     puts "Extension es: "+ ext
     file = File.read(full_path)
     response = "HTTP/1.1 200 OK\r\n" +
                 "Content-Type: text/html\r\n" +
                 "Content-Length: #{file.size}\r\n" +
-                #"Connection: close\r\n"+
                 "\r\n"+
                 file
   else
@@ -109,8 +179,42 @@ def metodo_GET(resource)
   end
   return response
 end
-def metodo_POST(resource)
+
+#----------- Metodo POST -----------#
+def metodo_POST(resource, request, client)
   puts "Este es el path POST: " + resource
+  response = ''
+  argumentos = ''
+  request.lines[-2..-1].each do |line|
+    argumentos = line
+  end
+  #nom_file,argumentos=resource.split("?")
+  ext = File.extname(resource)
+  if ext == ".cgi"
+    puts "------- Archivo cgi ----------"
+    file = run_cgi(resource, request, client, argumentos)
+    response = "HTTP/1.1 200 OK\r\n" + file
+  elsif ext != ".cgi"
+    full_path = Dir.pwd+nom_file
+    puts full_path
+    puts "------- Archivo no es cgi ----------"
+    puts "Extension es: "+ ext
+    file = File.read(full_path)
+    response = "HTTP/1.1 200 OK\r\n" +
+                "Content-Type: text/html\r\n" +
+                "Content-Length: #{file.size}\r\n" +
+                "\r\n"+
+                file
+  else
+    message = "File not found\n"
+    response = "HTTP/1.1 404 Not Found\r\n" +
+                 "Content-Type: text/html\r\n" +
+                 "Content-Length: #{message.size}\r\n" +
+                 "Connection: close\r\n" +
+                 "\r\n" +
+                 message
+  end
+  return response
 end
 
 def metodo_HEAD(resource)
@@ -141,104 +245,63 @@ def requested_file(client, request)
                   "\r\n"+
                   file
       return response
-    else
-        message = "File not found\n"
-        # Responde con un codigo 404 error que indica que no exixte el archivo
-        response = "HTTP/1.1 404 Not Found\r\n" +
+    end
+  else
+    begin
+      if method == "GET"
+        response = metodo_GET(resource,request,client)
+      elsif method == "POST"
+        response = metodo_POST(resource,request,client)
+      elsif method == "HEAD"
+        response = metodo_HEAD(resource,request,client)
+      else
+        message = "Method not allowed"
+        response = "HTTP/1.1 500 Method not allowed\r\n" +
                      "Content-Type: text/html\r\n" +
                      "Content-Length: #{message.size}\r\n" +
                      "Connection: close\r\n" +
                      "\r\n"
                      message
+      end
+    rescue IOError => e
+      puts e
+      if e
+        message = "File not found\n"
+        # Responde con un codigo 404 error que indica que no exixte el archivo
+        response = "HTTP/1.1 404 Not Found\r\n" +
+                   "Content-Type: text/html\r\n" +
+                   "Content-Length: #{message.size}\r\n" +
+                   "Connection: close\r\n" +
+                   "\r\n"
+                   message
+      end
     end
-  end
-
-
-    #------------
-=begin
-    clean = []
-
-    # Split the path into components
-    parts = path.split("/")
-
-    parts.each do |part|
-      # Omitir cualquier directorio vacío o actual (".") componentes de ruta de acceso
-      next if part.empty? || part == '.'
-      # Si el componente path sube un nivel de directorio (".."),
-      # Quite el último componente limpio.
-      # De lo contrario, añada el componente a la matriz de componentes limpios
-      part == '..' ? clean.pop : clean << part
-    end
-
-    # regresamos el DIRECTORY_ROOT limpio
-    File.join(DIRECTORY_ROOT, *clean)
-  end
-=end
-  if method == "GET"
-    response = metodo_GET(resource)
-  elsif method == "POST"
-    response = metodo_POST(resource)
-  elsif method == "HEAD"
-    response = metodo_HEAD(resource)
-  else
-    message = "Method not allowed"
-    response = "HTTP/1.1 500 Method not allowed\r\n" +
-                 "Content-Type: text/html\r\n" +
-                 "Content-Length: #{message.size}\r\n" +
-                 "Connection: close\r\n" +
-                 "\r\n"
-                 message
   end
   return response
 end
 
 def parse_headers(request)
-  headers{}
+  headers = {}
   request.lines[1..-1].each do |line|
     return headers if line == "\r\n"
-    header, value = line.split
-    header        = normalize(header)
+    header, value = line.split(":")
     headers[header] = value
-  end
-  def normalize(header)
-    header.gsub(":","").downcase.to_sym
   end
 end
 
 #---------------- Creacion del servidor Web --------------------#
-hostname = 'localhost'
-port = 8080
+HOSTNAME = 'localhost'
+PORT = 8080
 
-server = TCPServer.new(hostname, port)
-puts "Servidor Corriendo en "+hostname+":"+port.to_s
+server = TCPServer.new(HOSTNAME, PORT)
+puts "Servidor Corriendo en "+HOSTNAME+":"+PORT.to_s
 loop do
   # Creamos un hilo por cada cliente que se conecte al Servidor
   Thread.start(server.accept) do |client|
     sock_domain, remote_port, remote_hostname, remote_ip = client.peeraddr
-    #puts sock_domain
-    puts remote_port
-    puts remote_hostname
-    puts remote_ip
     request = client.readpartial(2048)
     response = requested_file(client, request)
     client.puts response
     client.close
   end
 end
-
-
-
-=begin
-puts "Servidor Corriendo en "+hostname+":"+port.to_s
-while client = server.accept
-  sock_domain, remote_port, remote_hostname, remote_ip = server.peeraddr
-  puts sock_domain
-  puts remote_port
-  puts remote_hostname
-  puts remote_ip
-  request = client.readpartial(2048)
-  response = requested_file(client, request)
-  client.puts response
-  client.close
-end
-=end
