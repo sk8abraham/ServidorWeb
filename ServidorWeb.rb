@@ -267,7 +267,7 @@ def requested_file(client, request)
       puts e
       if e
         message = "File not found\n"
-        # Responde con un codigo 404 error que indica que no exixte el archivo
+        # Responde con un codigo 404 error que indica que no existe el archivo
         response = "HTTP/1.1 404 Not Found\r\n" +
                    "Content-Type: text/html\r\n" +
                    "Content-Length: #{message.size}\r\n" +
