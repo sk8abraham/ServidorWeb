@@ -7,3 +7,4 @@ REGLA->6;CABECERAS_NOMBRES;iregex:"RARO.*";Cabecera desconocida;ignorar
 REGLA->7;CABECERAS;regex:"RARO: LOL.*";Cabecera desconocida;ignorar
 REGLA->8;PETICION_LINEA;regex:"DELETE.*";Accion no permitida;ignorar
 REGLA->9;COOKIES;regex:"qwerty";Accion no permitida;ignorar
+:q:q

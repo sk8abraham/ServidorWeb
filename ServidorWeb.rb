@@ -1,4 +1,25 @@
+#!/usr/bin/ruby
 require 'socket'
+require 'optparse'
+
+options = {puerto:8080, directorio:".",bitacoras:nil,waf:nil,audit:"audit.log"}
+optparse = OptionParser.new do |opt|
+  opt.on('-p', '--puerto PUERTO', Integer, 'Numero de puerto') do |p| options[:puerto] = p
+  end
+  opt.on('-d', '--directorio DIRECTORIO', 'Directorio para montar el servidor') do |d| options[:directorio] = d
+  end
+  opt.on('-b', '--bitacoras DIRECTORIO', 'Directorio donde se encuentran las bitacoras') do |b| options[:bitacoras] = b
+  end
+  opt.on('-w', '--waf ARCHIVO_REGLAS', 'Habilitar Web Application Firewall') do |w| options[:waf] = w
+  end
+  opt.on('-a', '--audit ARCHIVO_AUDITORIAS', 'Archivo de bitacora del WAF') do |a| options[:audit] = a
+  end
+end
+
+optparse.parse!
+
+
+
 
 DIRECTORY_ROOT = '.'
 
