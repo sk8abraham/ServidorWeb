@@ -2,7 +2,7 @@
 require 'socket'
 require 'optparse'
 
-options = {puerto:8080, directorio:".",bitacoras:nil,waf:nil,audit:"audit.log"}a
+options = {puerto:8080, directorio:".",bitacoras:nil,waf:nil,audit:"audit.log"}
 
 optparse = OptionParser.new do |opt|
   opt.on('-p', '--puerto PUERTO', Integer, 'Numero de puerto') do |p| options[:puerto] = p
@@ -61,7 +61,7 @@ end
 #Cambiando de directorio al que se vaya a montar el servidor
 if Dir.exist?(options[:directorio])
   Dir.chdir options[:directorio]
-  print Dir.pwd+"\n"
+  print "Directorio donde se monto: #{Dir.pwd}\n"
   print "Archivos en el servidor: #{Dir["*"]}\n"
 else 
   print "Ruta no valida"
