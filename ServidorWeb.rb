@@ -2,7 +2,8 @@
 require 'socket'
 require 'optparse'
 
-options = {puerto:8080, directorio:".",bitacoras:nil,waf:nil,audit:"audit.log"}
+options = {puerto:8080, directorio:".",bitacoras:nil,waf:nil,audit:"audit.log"}a
+
 optparse = OptionParser.new do |opt|
   opt.on('-p', '--puerto PUERTO', Integer, 'Numero de puerto') do |p| options[:puerto] = p
   end
@@ -15,11 +16,19 @@ optparse = OptionParser.new do |opt|
   opt.on('-a', '--audit ARCHIVO_AUDITORIAS', 'Archivo de bitacora del WAF') do |a| options[:audit] = a
   end
 end
+
 optparse.parse!
 
 ruta = Dir.pwd+"/"
 ruta_bitacoras = ""
 ruta_reglas = ""
+
+#Validacion de puerto
+if options[:puerto] < 1 or options[:puerto] > 65535
+  print("Puerto esta fuera del rango [1..65535]: #{options[:puerto].to_s}\n")
+  exit
+end
+
 
 #Verificando que el archivo de reglas existe y obteniendo su ruta absoluta
 if options[:waf] != nil
@@ -33,6 +42,7 @@ if options[:waf] != nil
     exit
    end
 end
+
 
 #Verificando que el directorio de bitacoras existe y obteniendo su ruta absoluta
 if options[:bitacoras] != nil
@@ -48,8 +58,21 @@ if options[:bitacoras] != nil
 end
 
 
+#Cambiando de directorio al que se vaya a montar el servidor
+if Dir.exist?(options[:directorio])
+  Dir.chdir options[:directorio]
+  print Dir.pwd+"\n"
+  print "Archivos en el servidor: #{Dir["*"]}\n"
+else 
+  print "Ruta no valida"
+  exit
+end
+
+
+
 
 DIRECTORY_ROOT = '.'
+
 
 # Creacion de funciones con cada metodo
 def metodo_GET(resource)
