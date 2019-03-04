@@ -1,22 +1,16 @@
 #!/usr/bin/ruby
 
-IP_Cliente = "127.0.0.1"
-Puerto_Cliente = "12345"
-
-IP_Server = "0.0.0.0"
-Puerto_Server = "8080"
-
-
-def waf(archivo, request)
+def waf(archivo, request, puerto_cliente, ip_cliente, puerto_servidor, ip_servidor)
 	begin
+		print "IP del cliente: ##########{ip_cliente}\n"
 		reglas=File.open(archivo).read
 		reglas.each_line do |linea|
 			regla,variables,operador,descripcion,accion=linea.match(/(REGLA->[0-9]+);([A-Z_]+[\|A-Z]*);(i?regex:\".+\");(.*);(.*)/).captures
 			variables = variables.split("|")
 			for var in variables
-				variable = obtienevar(var,request)
+				variable = obtienevar(var,request,ip_cliente)
 				for valor in variable
-					codigo = filtra(regla, valor, operador, descripcion, accion, request)
+					codigo = filtra(regla, valor, operador, descripcion, accion, request, puerto_cliente, ip_cliente, puerto_servidor, ip_servidor)
 					if codigo != ""
 						if codigo == "ignorar"
 							return codigo
@@ -27,14 +21,13 @@ def waf(archivo, request)
 				end
 			end
 		end
-		print "lol"
 		return ""
 	rescue => e
 		printError(e.to_s,true)
 	end
 end
 
-def obtienevar(var, request)
+def obtienevar(var, request, ip_cliente)
 	req = request.split("\n")
 	regresa=[]
 	if var == 'AGENTE_USUARIO'
@@ -54,8 +47,7 @@ def obtienevar(var, request)
 		return req[req.index("\r")..-1].map{|word| word.sub("\r","")}
 
 	elsif var == "CLIENTE_IP"
-		#print "clienteip: \n"
-		return [IP_Cliente]
+		return [ip_cliente]
 	
 	elsif var == "CABECERAS_VALORES"
 		for x in req[1..req.index("\r")]
@@ -94,14 +86,14 @@ def obtienevar(var, request)
 end
 
 
-def filtra(regla, var_valor, operador, descripcion, accion, request)
+def filtra(regla, var_valor, operador, descripcion, accion, request, puerto_cliente, ip_cliente, puerto_servidor, ip_servidor)
 	operador,regex = operador.match(/(i?regex):"(.+)"/).captures
 	if operador == "iregex"
 		regex = regex.downcase
 		var_valor = var_valor.downcase
 	end
 	if var_valor.match(%[#{regex}])
-		cadena = "Timestamp: "+Time.now.to_i.to_s+", IP_Cliente: "+IP_Cliente+", Puerto_Cliente: "+Puerto_Cliente+", IP_Server: "+IP_Server+", Puerto_Server:"+Puerto_Server+", Regla: "+regla.split("->")[1]+", Descripcion: "+descripcion+", Request:"+request+"\n"
+		cadena = "Timestamp: "+Time.now.to_i.to_s+", IP_Cliente: "+ip_cliente.to_s+", Puerto_Cliente: "+puerto_cliente.to_s+", IP_Server: "+ip_servidor.to_s+", Puerto_Server:"+puerto_servidor.to_s+", Regla: "+regla.split("->")[1]+", Descripcion: "+descripcion+", Request:"+request+"\n"
 		writeaudit(cadena)
 		return accion
 	else
@@ -143,11 +135,5 @@ def printError(mensaje,ex=false)
 		exit
 	end
 end	
-
-
-pet="GET / HTTP/1.1\nHost: localhost:8080\nUser-Agent: curl/7.52.1\nCookie: qwerty\nAccept: */*\n\r"
-#verifica_reglas("reglas.txt")
-codigo = waf("reglas.txt",pet)
-print "Codigo: #{codigo}\n"
 
 

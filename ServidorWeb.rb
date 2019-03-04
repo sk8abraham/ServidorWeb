@@ -2,6 +2,8 @@
 require 'socket'
 require 'optparse'
 require "open3"
+require 'date'
+require_relative 'waf'
 
 options = {puerto:8080, directorio:".",bitacoras:nil,waf:nil,audit:"audit.log"}
 
@@ -232,13 +234,27 @@ def metodo_HEAD(resource)
 end
 
 
-def requested_file(client, request)
+def requested_file(client, request, opt_waf, puerto_cliente, ip_cliente)
+  ###
+  fecha = Time.now.strftime("%d/%m/%Y %H:%M:%S %Z")	
+  codigos = {"403" => "Forbidden","404" => "Not Found", "500" => "Internal Server Error"}
+  codigo_waf=""
+  if opt_waf != nil
+    codigo_waf = waf(opt_waf, request, puerto_cliente, ip_cliente, PORT, HOSTNAME, )
+  end
   puts "Request: "+request
   method, resource, version = request.lines[0].split
   puts "Metodo: "+ method
   puts "Path: "+ resource
   puts "Version: "+ version
   response = ""
+  
+  if codigo_waf == "ignorar"
+    return codigo_waf
+  elsif codigos.key?(codigo_waf)
+	  response = method + " " + codigo_waf + " " + codigos[codigo_waf]+"\r\n"
+  end
+
   if resource == "/"
     resource = File.join(resource, 'index.html') if File.directory?(resource)
     # No aseguramos que el archivo existe y no es un directorio
@@ -300,8 +316,8 @@ def parse_headers(request)
 end
 
 #---------------- Creacion del servidor Web --------------------#
-HOSTNAME = 'localhost'
-PORT = 8080
+HOSTNAME = '0.0.0.0'
+PORT = options[:puerto]
 
 server = TCPServer.new(HOSTNAME, PORT)
 puts "Servidor Corriendo en "+HOSTNAME+":"+PORT.to_s
@@ -310,8 +326,10 @@ loop do
   Thread.start(server.accept) do |client|
     sock_domain, remote_port, remote_hostname, remote_ip = client.peeraddr
     request = client.readpartial(2048)
-    response = requested_file(client, request)
-    client.puts response
-    client.close
+    response = requested_file(client, request,options[:waf], remote_port, remote_ip)
+    if response != "ignorar"
+      client.puts response
+      client.close
+    end
   end
 end

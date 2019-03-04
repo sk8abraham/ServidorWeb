@@ -1,7 +1,7 @@
 REGLA->1;METODO;regex:"^TRACE";Bloqueo de metodo TRACE de http;codigo:403
 REGLA->2;RECURSO|CUERPO;iregex:".*<script.*>.*</script>.*";Intento de XSS;codigo:500
 REGLA->3;CABECERAS_VALORES;regex:".*() {.*}.*;.*";Explotacion de vulnerabilidad de tipo "ShellShock" {CVE-2014-6271};ignorar
-REGLA->4;AGENTE_USUARIO;regex:"curl.*";Evita Curl;codigo:404
+REGLA->4;AGENTE_USUARIO;regex:"curl.*";Evita Curl;ignorar
 REGLA->5;CLIENTE_IP;regex:"localhost.*";Evita conexiones locales;codigo:404
 REGLA->6;CABECERAS_NOMBRES;iregex:"RARO.*";Cabecera desconocida;ignorar
 REGLA->7;CABECERAS;regex:"RARO: LOL.*";Cabecera desconocida;ignorar
