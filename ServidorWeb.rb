@@ -133,11 +133,18 @@ def run_cgi(nom_file, request, client, argumentos=nil)
   # Creamos el comando para que se mandara a llamar dentro de sistema
   cmd = "#{inter} #{full_path}"
   puts cmd
+  puts "############################   CGI"
   Open3.popen3(cmd) do |stdin, stdout, stderr, wait_thr|
-    std_out = stdout.read
-    puts stderr.read
+    #std_out = stdout.read
+    #print "############################ pase"
+    #puts stderr.read
+    #stdin.close
+    #puts std_out
+    stdin.puts
     stdin.close
-    puts std_out
+    std_out = stdout.read
+    std_err = stderr.read
+    status = wait_thr.value
   end
   return std_out
 end
@@ -193,6 +200,7 @@ def metodo_POST(resource, request, client)
   if ext == ".cgi"
     puts "------- Archivo cgi ----------"
     file = run_cgi(resource, request, client, argumentos)
+    puts "################################################"
     response = "HTTP/1.1 200 OK\r\n" + file
   elsif ext != ".cgi"
     full_path = Dir.pwd+nom_file
@@ -214,6 +222,8 @@ def metodo_POST(resource, request, client)
                  "\r\n" +
                  message
   end
+  puts "Respuesta: ----------------------"
+  puts response
   return response
 end
 
