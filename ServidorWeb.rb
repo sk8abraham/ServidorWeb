@@ -324,6 +324,7 @@ def requested_file(client, request, opt_waf, puerto_cliente, ip_cliente, opt_aud
       end
     end
   end
+  print response +"\n"
   return response
 end
 
