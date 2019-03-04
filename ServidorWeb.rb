@@ -44,6 +44,7 @@ if options[:waf] != nil
     print "El archivo de reglas: " + ruta_reglas + " no existe\n"
     exit
    end
+  verifica_reglas(ruta_reglas)
 end
 
 
