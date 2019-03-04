@@ -5,6 +5,8 @@ require "open3"
 require 'date'
 require_relative 'waf'
 
+HEADERS = ENV['SERVER_SOFTWARE'] = "Ruby BecarioWeb2"
+
 options = {puerto:8080, directorio:".",bitacoras:nil,waf:nil,audit:"audit.log"}
 
 optparse = OptionParser.new do |opt|
@@ -96,7 +98,7 @@ def run_cgi(nom_file, request, client, argumentos=nil)
     ENV['QUERY_STRING'] = argumentos
   end
   puts ENV['QUERY_STRING']
-  ENV['SERVER_SOFTWARE'] = "Python BecarioWeb2"
+  ENV['SERVER_SOFTWARE'] = "Ruby BecarioWeb2"
   puts ENV['SERVER_SOFTWARE']
   ENV['DOCUMENT_ROOT'] = DIRECTORY_ROOT
   puts ENV['DOCUMENT_ROOT']
@@ -157,27 +159,31 @@ def metodo_GET(resource,request,client)
   puts "Este es el path GET: " + resource
   response = ''
   nom_file,argumentos=resource.split("?")
-  ext = File.extname(nom_file)
-  if ext == ".cgi"
-    puts "------- Archivo cgi ----------"
-    if argumentos == nil
-      file = run_cgi(nom_file, request, client)
-      response = "HTTP/1.1 200 OK\r\n" + file
+  s,file=resource.split("/")
+  puts File.exist?(file)
+  if File.exist?(file)
+    ext = File.extname(nom_file)
+    if ext == ".cgi"
+      puts "------- Archivo cgi ----------"
+      if argumentos == nil
+        file = run_cgi(nom_file, request, client)
+        response = "HTTP/1.1 200 OK\r\n" + file
+      else
+        file = run_cgi(nom_file, request, client, argumentos)
+        response = "HTTP/1.1 200 OK\r\n" + file
+      end
     else
-      file = run_cgi(nom_file, request, client, argumentos)
-      response = "HTTP/1.1 200 OK\r\n" + file
+      full_path = Dir.pwd+nom_file
+      puts full_path
+      puts "------- Archivo no es cgi ----------"
+      puts "Extension es: "+ ext
+      file = File.read(full_path)
+      response = "HTTP/1.1 200 OK\r\n" +
+                  "Content-Type: text/html\r\n" +
+                  "Content-Length: #{file.size}\r\n" +
+                  "\r\n"+
+                  file
     end
-  elsif ext != ".cgi"
-    full_path = Dir.pwd+nom_file
-    puts full_path
-    puts "------- Archivo no es cgi ----------"
-    puts "Extension es: "+ ext
-    file = File.read(full_path)
-    response = "HTTP/1.1 200 OK\r\n" +
-                "Content-Type: text/html\r\n" +
-                "Content-Length: #{file.size}\r\n" +
-                "\r\n"+
-                file
   else
     message = "File not found\n"
     response = "HTTP/1.1 404 Not Found\r\n" +
@@ -198,30 +204,32 @@ def metodo_POST(resource, request, client)
   request.lines[-2..-1].each do |line|
     argumentos = line
   end
-  #nom_file,argumentos=resource.split("?")
-  ext = File.extname(resource)
-  if ext == ".cgi"
-    puts "------- Archivo cgi ----------"
-    file = run_cgi(resource, request, client, argumentos)
-    puts "################################################"
-    response = "HTTP/1.1 200 OK\r\n" + file
-  elsif ext != ".cgi"
-    full_path = Dir.pwd+nom_file
-    puts full_path
-    puts "------- Archivo no es cgi ----------"
-    puts "Extension es: "+ ext
-    file = File.read(full_path)
-    response = "HTTP/1.1 200 OK\r\n" +
-                "Content-Type: text/html\r\n" +
-                "Content-Length: #{file.size}\r\n" +
-                "\r\n"+
-                file
+  s,file=resource.split("/")
+  puts File.exist?(file)
+  if File.exist?(file)
+    ext = File.extname(resource)
+    if ext == ".cgi"
+      puts "------- Archivo cgi ----------"
+      file = run_cgi(resource, request, client, argumentos)
+      puts "################################################"
+      response = "HTTP/1.1 200 OK\r\n" + file
+    else ext != ".cgi"
+      full_path = Dir.pwd+nom_file
+      puts full_path
+      puts "------- Archivo no es cgi ----------"
+      puts "Extension es: "+ ext
+      file = File.read(full_path)
+      response = "HTTP/1.1 200 OK\r\n" +
+                  "Content-Type: text/html\r\n" +
+                  "Content-Length: #{file.size}\r\n" +
+                  "\r\n"+
+                  file
+    end
   else
     message = "File not found\n"
     response = "HTTP/1.1 404 Not Found\r\n" +
                  "Content-Type: text/html\r\n" +
                  "Content-Length: #{message.size}\r\n" +
-                 "Connection: close\r\n" +
                  "\r\n" +
                  message
   end
@@ -230,8 +238,32 @@ def metodo_POST(resource, request, client)
   return response
 end
 
-def metodo_HEAD(resource)
-  puts "Este es el path HEAD: " + resource
+def metodo_HEAD(resource,request)
+  nom_file,argumentos=resource.split("?")
+  s,file=nom_file.split("/")
+  if (File.exist?(file))
+    if nom_file
+      response = "HTTP/1.1 200 OK\r\n" +
+                  "Content-Type: text/html\r\n" +
+                  "Server: "+HEADERS+"\r\n" +
+                  "\r\n"
+    elsif nom_file == "/"
+      response = "HTTP/1.1 200 OK\r\n" +
+                  "Content-Type: text/html\r\n" +
+                  "Server: "+HEADERS + "\r\n" +
+                  "\r\n"
+    end
+  else
+    message = "File not found\n"
+    # Responde con un codigo 404 error que indica que no existe el archivo
+    response = "HTTP/1.1 404 Not Found\r\n" +
+               "Content-Type: text/html\r\n" +
+               "Content-Length: #{message.size}\r\n" +
+               "Connection: close\r\n" +
+               "\r\n"
+               message
+  end
+  return response
 end
 
 def logs(ip_cliente, fecha, mensaje, status, len_request, pid, tid, archivo, ruta_bitacoras, tipo)
@@ -249,15 +281,13 @@ def logs(ip_cliente, fecha, mensaje, status, len_request, pid, tid, archivo, rut
     File.write(arch, cadena2 ,mode:'a')
   elsif ruta_bitacoras == nil and tipo == "e"
     print(cadena2)
-    
-  end 
+
+  end
 end
-
-
 
 def requested_file(client, request, opt_waf, puerto_cliente, ip_cliente, opt_audit, ruta_bitacoras)
   ###
-  fecha = Time.now.strftime("%d/%m/%Y %H:%M:%S %Z")	
+  fecha = Time.now.strftime("%d/%m/%Y %H:%M:%S %Z")
   codigos = {"403" => "Forbidden","404" => "Not Found", "500" => "Internal Server Error"}
   codigo_waf=""
   if opt_waf != nil
@@ -269,7 +299,7 @@ def requested_file(client, request, opt_waf, puerto_cliente, ip_cliente, opt_aud
   puts "Path: "+ resource
   puts "Version: "+ version
   response = ""
-  
+
   if codigo_waf == "ignorar"
     return codigo_waf
   elsif codigos.key?(codigo_waf)
@@ -281,17 +311,52 @@ def requested_file(client, request, opt_waf, puerto_cliente, ip_cliente, opt_aud
     # No aseguramos que el archivo existe y no es un directorio
     # antes de intentar abrirla.
     resource = Dir.pwd+resource
-    if File.exist?(resource) && !File.directory?(resource)
-      puts "-------REDIRECCION a Index.html------------"
-      file = File.read(resource)
-      response = "HTTP/1.1 302 Found\r\n" +
-                  "Location: /index.html\n" +
+    puts "resource: " + resource
+    if method == "GET" || method == "POST"
+      if File.exist?(resource) && !File.directory?(resource)
+        puts "-------REDIRECCION a Index.html------------"
+        file = File.read(resource)
+        response = "HTTP/1.1 302 Found\r\n" +
+                    "Location: /index.html\n" +
+                    "Content-Type: text/html\r\n" +
+                    "Content-Length: #{file.size}\r\n"+
+                    "\r\n"+
+                    file
+        return response
+      else
+        message = "File not found\n"
+        # Responde con un codigo 404 error que indica que no existe el archivo
+        response = "HTTP/1.1 404 Not Found\r\n" +
+                   "Content-Type: text/html\r\n" +
+                   "Content-Length: #{message.size}\r\n" +
+                   "\r\n" +
+                   message
+        return response
+      end
+    elsif method == "HEAD"
+      puts File.exist?(resource)
+      if (File.exist?(resource))
+        response = "HTTP/1.1 200 OK\r\n" +
+                   "Content-Type: text/html\r\n" +
+                   "Server: "+ HEADERS + "\r\n" +
+                   "\r\n"
+      else
+        message = "File not found\n"
+        # Responde con un codigo 404 error que indica que no existe el archivo
+        response = "HTTP/1.1 404 Not Found\r\n" +
+                   "Content-Type: text/html\r\n" +
+                   "Content-Length: #{message.size}\r\n" +
+                   "\r\n" +
+                   message
+      end
+    else
+      message  = "Method Not Allowed\n"
+      # Responde con un codigo 500 error que indica que se permite ese metodo
+      response = "HTTP/1.1 405 Method Not Allowed\r\n" +
                   "Content-Type: text/html\r\n" +
-                  "Content-Length: #{file.size}\r\n" +
-                  #"Connection: close\r\n"+
-                  "\r\n"+
-                  file
-      return response
+                  "Content-Length: #{message.size}\r\n" +
+                  "\r\n" +
+                  message
     end
   else
     begin
@@ -300,15 +365,15 @@ def requested_file(client, request, opt_waf, puerto_cliente, ip_cliente, opt_aud
       elsif method == "POST"
         response = metodo_POST(resource,request,client)
       elsif method == "HEAD"
-        response = metodo_HEAD(resource,request,client)
+        response = metodo_HEAD(resource,request)
       else
-        message = "Method not allowed"
-        response = "HTTP/1.1 500 Method not allowed\r\n" +
-                     "Content-Type: text/html\r\n" +
-                     "Content-Length: #{message.size}\r\n" +
-                     "Connection: close\r\n" +
-                     "\r\n"
-                     message
+        message = "Method Not Allowed\n"
+        response = "HTTP/1.1 405 Method Not Allowed\r\n" +
+                   "Content-Type: text/html\r\n" +
+                   "Content-Length: #{message.size}\r\n" +
+                   "\r\n" +
+                   message
+       return response
       end
     rescue IOError => e
       puts e
@@ -318,13 +383,12 @@ def requested_file(client, request, opt_waf, puerto_cliente, ip_cliente, opt_aud
         response = "HTTP/1.1 404 Not Found\r\n" +
                    "Content-Type: text/html\r\n" +
                    "Content-Length: #{message.size}\r\n" +
-                   "Connection: close\r\n" +
-                   "\r\n"
+                   "\r\n" +
                    message
+        return response
       end
     end
   end
-  print response +"\n"
   return response
 end
 
