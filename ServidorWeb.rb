@@ -234,13 +234,14 @@ def metodo_HEAD(resource)
 end
 
 
-def requested_file(client, request, opt_waf, puerto_cliente, ip_cliente)
+def requested_file(client, request, opt_waf, puerto_cliente, ip_cliente, opt_audit)
   ###
+  print "######################### XDDDDDDDDDDDDDDDD"
   fecha = Time.now.strftime("%d/%m/%Y %H:%M:%S %Z")	
   codigos = {"403" => "Forbidden","404" => "Not Found", "500" => "Internal Server Error"}
   codigo_waf=""
   if opt_waf != nil
-    codigo_waf = waf(opt_waf, request, puerto_cliente, ip_cliente, PORT, HOSTNAME, )
+    codigo_waf = waf(opt_waf, request, puerto_cliente, ip_cliente, PORT, HOSTNAME,  opt_audit)
   end
   puts "Request: "+request
   method, resource, version = request.lines[0].split
@@ -326,7 +327,7 @@ loop do
   Thread.start(server.accept) do |client|
     sock_domain, remote_port, remote_hostname, remote_ip = client.peeraddr
     request = client.readpartial(2048)
-    response = requested_file(client, request,options[:waf], remote_port, remote_ip)
+    response = requested_file(client, request,options[:waf], remote_port, remote_ip, options[:audit])
     if response != "ignorar"
       client.puts response
       client.close

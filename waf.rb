@@ -1,6 +1,7 @@
 #!/usr/bin/ruby
 
-def waf(archivo, request, puerto_cliente, ip_cliente, puerto_servidor, ip_servidor)
+def waf(archivo, request, puerto_cliente, ip_cliente, puerto_servidor, ip_servidor, audit_file)
+	#
 	begin
 		print "IP del cliente: ##########{ip_cliente}\n"
 		reglas=File.open(archivo).read
@@ -10,7 +11,7 @@ def waf(archivo, request, puerto_cliente, ip_cliente, puerto_servidor, ip_servid
 			for var in variables
 				variable = obtienevar(var,request,ip_cliente)
 				for valor in variable
-					codigo = filtra(regla, valor, operador, descripcion, accion, request, puerto_cliente, ip_cliente, puerto_servidor, ip_servidor)
+					codigo = filtra(regla, valor, operador, descripcion, accion, request, puerto_cliente, ip_cliente, puerto_servidor, ip_servidor, audit_file)
 					if codigo != ""
 						if codigo == "ignorar"
 							return codigo
@@ -86,15 +87,15 @@ def obtienevar(var, request, ip_cliente)
 end
 
 
-def filtra(regla, var_valor, operador, descripcion, accion, request, puerto_cliente, ip_cliente, puerto_servidor, ip_servidor)
+def filtra(regla, var_valor, operador, descripcion, accion, request, puerto_cliente, ip_cliente, puerto_servidor, ip_servidor, audit_file)
 	operador,regex = operador.match(/(i?regex):"(.+)"/).captures
 	if operador == "iregex"
 		regex = regex.downcase
 		var_valor = var_valor.downcase
 	end
 	if var_valor.match(%[#{regex}])
-		cadena = "Timestamp: "+Time.now.to_i.to_s+", IP_Cliente: "+ip_cliente.to_s+", Puerto_Cliente: "+puerto_cliente.to_s+", IP_Server: "+ip_servidor.to_s+", Puerto_Server:"+puerto_servidor.to_s+", Regla: "+regla.split("->")[1]+", Descripcion: "+descripcion+", Request:"+request+"\n"
-		writeaudit(cadena)
+		cadena = "Timestamp: "+Time.now.to_i.to_s+", IP_Cliente: "+ip_cliente.to_s+", Puerto_Cliente: "+puerto_cliente.to_s+", IP_Server: "+ip_servidor.to_s+", Puerto_Server:"+puerto_servidor.to_s+", Regla: "+regla.split("->")[1]+", Descripcion: "+descripcion+", Request:\n"+request+"\n"
+		writeaudit(cadena, audit_file)
 		return accion
 	else
 		return ""
@@ -102,8 +103,8 @@ def filtra(regla, var_valor, operador, descripcion, accion, request, puerto_clie
 end
 
 
-def writeaudit(cadena)
-	path = Dir.pwd + "/audit.log"
+def writeaudit(cadena, audit_file)
+	path = Dir.pwd + "/" + audit_file
 	File.write(path,cadena,mode:'a')
 end
 
