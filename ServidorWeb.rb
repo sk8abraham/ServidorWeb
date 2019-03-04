@@ -23,8 +23,8 @@ end
 optparse.parse!
 
 ruta = Dir.pwd+"/"
-ruta_bitacoras = ""
-ruta_reglas = ""
+ruta_bitacoras = nil
+ruta_reglas = nil
 
 #Validacion de puerto
 if options[:puerto] < 1 or options[:puerto] > 65535
@@ -51,9 +51,9 @@ end
 #Verificando que el directorio de bitacoras existe y obteniendo su ruta absoluta
 if options[:bitacoras] != nil
   if options[:bitacoras].match(/^\/.*/)
-    ruta_bitacoras = options[:bitacoras]
+    ruta_bitacoras = options[:bitacoras]+"/"
   else
-    ruta_bitacoras = ruta + options[:bitacoras]
+    ruta_bitacoras = ruta + options[:bitacoras]+"/"
   end
   if !Dir.exist?(ruta_bitacoras)
     print "La ruta no es valida\n"
@@ -234,10 +234,29 @@ def metodo_HEAD(resource)
   puts "Este es el path HEAD: " + resource
 end
 
+def logs(ip_cliente, fecha, mensaje, status, len_request, pid, tid, archivo, ruta_bitacoras, tipo)
+    cadena1 = ip_cliente.to_s+" -- ["+fecha+"] "+mensaje+" "+status+" "+ len_request+"\n"
+    cadena2 = "["+fecha+"] [core:error] [pid "+pid+":tid "+tid+"] [client "+ ip_cliente.to_s+"] File does not exist: "+archivo+"\n"
+  if ruta_bitacoras != nil and tipo == "a"
+    arch = ruta_bitacoras+"access.log"
+    File.write(arch, cadena1 ,mode:'a')
+  elsif ruta_bitacoras == nil and tipo == "a"
+    print(cadena1)
+  end
 
-def requested_file(client, request, opt_waf, puerto_cliente, ip_cliente, opt_audit)
+  if ruta_bitacoras != nil and tipo == "e"
+    arch = ruta_bitacoras+"error.log"
+    File.write(arch, cadena2 ,mode:'a')
+  elsif ruta_bitacoras == nil and tipo == "e"
+    print(cadena2)
+    
+  end 
+end
+
+
+
+def requested_file(client, request, opt_waf, puerto_cliente, ip_cliente, opt_audit, ruta_bitacoras)
   ###
-  print "######################### XDDDDDDDDDDDDDDDD"
   fecha = Time.now.strftime("%d/%m/%Y %H:%M:%S %Z")	
   codigos = {"403" => "Forbidden","404" => "Not Found", "500" => "Internal Server Error"}
   codigo_waf=""
@@ -328,7 +347,7 @@ loop do
   Thread.start(server.accept) do |client|
     sock_domain, remote_port, remote_hostname, remote_ip = client.peeraddr
     request = client.readpartial(2048)
-    response = requested_file(client, request,options[:waf], remote_port, remote_ip, options[:audit])
+    response = requested_file(client, request,options[:waf], remote_port, remote_ip, options[:audit], ruta_bitacoras)
     if response != "ignorar"
       client.puts response
       client.close
